@@ -8,7 +8,8 @@
 #include <stdlib.h>
 
 void clear_cache(){
-	if(){
+	if(cache != NULL){
+		//clear
 		
 	}
 }
@@ -47,6 +48,7 @@ int main(int argc, char* argv[])
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
+	int size;
 
 	fp = fopen(filename, 'r');
 	if (fp == NULL) {
@@ -80,6 +82,7 @@ int main(int argc, char* argv[])
 	if (line)
 		free(line);
     printSummary(0, 0, 0);
+    clear_cache();
 
     return EXIT_SUCCESS;
 }
