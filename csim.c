@@ -45,6 +45,9 @@ int main(int argc, char* argv[])
 	int block_offset = atoi(argv[7]);
 	char *filename = argv[9];
 
+	struct Cache *cache = initCache(lines_set, index_bits, block_offset);
+
+	// TODO Some of this should change (for academic honesty reasons)
 	// File reading variables
 	FILE *fp;
 	char *line = NULL;
@@ -74,8 +77,20 @@ int main(int argc, char* argv[])
 		}
 
 		int i = hexStartIndex;
-		strtok(line, " ,");
-		for (; line[i] != ','; i++) {
+		char hex[10];
+		char c;
+		//strtok(line, " ,");
+		for (; (c = line[i]) != ','; i++) {
+			hex[i - hexStartIndex] = c;
+		}
+		hex[9] = '\0';
+
+		int hexNum = strtol(hex, NULL, 16);
+
+		//from i+1 until the end, that string represents the size
+		i++;
+		// While line[i] doesn't equal endline and null char
+		for (; (c = line[i]) != '\0' && c != '\n'; i++) {
 
 		}
 	}
