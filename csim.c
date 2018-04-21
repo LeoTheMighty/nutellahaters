@@ -4,10 +4,12 @@
  */
 
 #include "cachelab.h"
+#include "Cache.h"
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-void clear_cache(){
+void clear_cache(struct Cache *cache) {
 	if(cache != NULL){
 		//clear
 		
@@ -33,7 +35,7 @@ void printUsage() {
 int main(int argc, char* argv[])
 {
 	// ./csim-ref [-hv] -s <num> -E <num> -b <num> -t <file>
-	if (argc != 10 || argv[1] == "-h") {
+	if (argc != 10 || !strcmp(argv[1], "-h")) {
 		printUsage();
 		return EXIT_FAILURE;
 	}
@@ -47,7 +49,7 @@ int main(int argc, char* argv[])
 	FILE *fp;
 	char *line = NULL;
 	size_t len = 0;
-	ssize_t read;
+	size_t read;
 	int size;
 
 	fp = fopen(filename, 'r');
@@ -82,7 +84,7 @@ int main(int argc, char* argv[])
 	if (line)
 		free(line);
     printSummary(0, 0, 0);
-    clear_cache();
+    //clear_cache();
 
     return EXIT_SUCCESS;
 }
