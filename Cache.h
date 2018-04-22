@@ -8,6 +8,8 @@
 #ifndef CACHE_H_
 #define CACHE_H_
 
+#define uint8_t unsigned char
+
 struct CacheLine;
 struct CacheSet;
 struct Cache;
