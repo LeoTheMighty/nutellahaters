@@ -97,6 +97,27 @@ void clear_cache(cache *cache, long int numSets, int numLines, long  int blockSi
 	free(cache);
 }
 
+cache add_cache(long int numSets, int numLines, long int blockSize){
+	cache newCache;	
+	cacheSet set;
+	setLine line;
+	int setIndex;
+	int lineIndex;
+	
+	newCache.sets = (cacheSet *) malloc(sizeof(cacheSet) * numSets);
+	for (setIndex = 0; setIndex < numSets; setIndex ++){
+		set.lines =  (set_line *) malloc(sizeof(setLine) * numLines);
+		newCache.sets[setIndex] = set;
+		for (lineIndex = 0; lineIndex < numLines; lineIndex ++){	
+			line.last_used = 0;
+			line.valid = 0;
+			line.tag = 0; 
+			set.lines[lineIndex] = line;	
+		}	
+	} 
+	return newCache;
+}
+
 void printUsage() {
 	printf("./csim-ref: Missing required command line argument\n");
 	printf("Usage: ./csim-ref [-hv] -s <num> -E <num> -b <num> -t <file>\n");
