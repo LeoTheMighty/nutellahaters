@@ -9,10 +9,41 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void clear_cache(struct Cache *cache) {
-	if(cache != NULL){
-		//clear
+cache build_cache(long int numSets, int numLines, long int blockSize){
+	cache newCache;	
+	cacheSet set;
+	setLine line;
+	int setIndex;
+	int lineIndex;
+
+	newCache.sets = (cacheSet *) malloc(sizeof(cacheSet) * numSets);
+	for (setIndex = 0; setIndex < numSets; setIndex ++){
 		
+		set.lines =  (setLine *) malloc(sizeof(setLine) * numLines);
+		newCache.sets[setIndex] = set;
+
+		for (lineIndex = 0; lineIndex < numLines; lineIndex ++){
+			line.last_used = 0;
+			line.valid = 0;
+			line.tag = 0; 
+			set.lines[lineIndex] = line;	
+		}	
+	} 
+
+	return newCache;
+	
+}
+
+void clear_cache(struct Cache *cache, long int numSets, int numLines, long int blockSize){
+	int setIndex;
+	for (setIndex = 0; setIndex < num_sets; setIndex ++){
+		cache_set set = cache.sets[setIndex];
+		if (set.lines != NULL){	
+			free(set.lines);
+		}	
+	} 
+	if (cache.sets != NULL){
+		free(cache.sets);
 	}
 }
 
