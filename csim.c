@@ -3,6 +3,8 @@
  *  REAL team name : The Nutella Haters
  */
 
+#define _GNU_SOURCE
+
 #include "cachelab.h"
 #include "Cache.h"
 #include <string.h>
@@ -53,9 +55,9 @@ int main(int argc, char* argv[])
 	char *line = NULL;
 	size_t len = 0;
 	size_t read;
-	int size;
+	//int size;
 
-	fp = fopen(filename, 'r');
+	fp = fopen(filename, "r");
 	if (fp == NULL) {
 		perror("Could not open file...");
 		return EXIT_FAILURE;
@@ -89,10 +91,10 @@ int main(int argc, char* argv[])
 
 		//from i+1 until the end, that string represents the size
 		i++;
-		// While line[i] doesn't equal endline and null char
-		for (; (c = line[i]) != '\0' && c != '\n'; i++) {
+		int dataSize = atoi(&line[i]);
+		// Ends at the endline anyways, so will be the string
 
-		}
+		// done reading from the line, now process it
 	}
 
 	fclose(fp);
