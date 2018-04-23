@@ -3,6 +3,8 @@
  *  REAL team name : The Nutella Haters
  */
 
+#define _GNU_SOURCE
+
 #include "cachelab.h"
 #include "Cache.h"
 #include <string.h>
@@ -45,14 +47,17 @@ int main(int argc, char* argv[])
 	int block_offset = atoi(argv[7]);
 	char *filename = argv[9];
 
+	struct Cache *cache = initCache(lines_set, index_bits, block_offset);
+
+	// TODO Some of this should change (for academic honesty reasons)
 	// File reading variables
 	FILE *fp;
 	char *line = NULL;
 	size_t len = 0;
 	size_t read;
-	int size;
+	//int size;
 
-	fp = fopen(filename, 'r');
+	fp = fopen(filename, "r");
 	if (fp == NULL) {
 		perror("Could not open file...");
 		return EXIT_FAILURE;
@@ -74,10 +79,22 @@ int main(int argc, char* argv[])
 		}
 
 		int i = hexStartIndex;
-		strtok(line, " ,");
-		for (; line[i] != ','; i++) {
-
+		char hex[10];
+		char c;
+		//strtok(line, " ,");
+		for (; (c = line[i]) != ','; i++) {
+			hex[i - hexStartIndex] = c;
 		}
+		hex[9] = '\0';
+
+		int hexNum = strtol(hex, NULL, 16);
+
+		//from i+1 until the end, that string represents the size
+		i++;
+		int dataSize = atoi(&line[i]);
+		// Ends at the endline anyways, so will be the string
+
+		// done reading from the line, now process it
 	}
 
 	fclose(fp);
