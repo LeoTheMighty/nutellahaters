@@ -6,7 +6,6 @@
 #define _GNU_SOURCE
 
 #include "cachelab.h"
-#include "Cache.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
