@@ -82,6 +82,21 @@ unsigned int pw2(unsigned int p) {
 	return pow;
 }
 
+
+void clear_cache(cache *cache, long int numSets, int numLines, long  int blockSize){
+	int setIndex;
+	for (setIndex = 0; setIndex < numSets; setIndex ++){
+		cacheSet set = cache.sets[setIndex];
+		if (set.lines != NULL){	
+			free(set.lines);
+		}
+	} 
+	if (Cache.sets != NULL) {
+		free(cache.sets);
+	}
+	free(cache);
+}
+
 void printUsage() {
 	printf("./csim-ref: Missing required command line argument\n");
 	printf("Usage: ./csim-ref [-hv] -s <num> -E <num> -b <num> -t <file>\n");
