@@ -11,6 +11,19 @@
 #include <stdlib.h>
 #include <limits.h>
 
+//need to fix the order
+struct CacheLine;
+struct CacheSet;
+struct Cache;
+struct Cache* initCache(unsigned int E, unsigned int b, unsigned int s);
+struct CacheSet initSet(unsigned int E);
+struct CacheLine initLine();
+unsigned int pw2(unsigned int p);
+char add_to_cache(Cache *cache, unsigned int tag, unsigned int index);
+void clear_cache(Cache *cache, long int numSets, int numLines, long  int blockSize);
+void printUsage();
+
+
 unsigned int hits = 0;
 unsigned int misses = 0;
 unsigned int evictions = 0;
