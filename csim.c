@@ -9,7 +9,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <limits.h>
+
+#define uint8_t unsigned char
 
 //need to fix the order
 struct CacheLine;
@@ -19,10 +22,9 @@ struct Cache* initCache(unsigned int E, unsigned int b, unsigned int s);
 struct CacheSet initSet(unsigned int E);
 struct CacheLine initLine();
 unsigned int pw2(unsigned int p);
-char add_to_cache(Cache *cache, unsigned int tag, unsigned int index);
-void clear_cache(Cache *cache, long int numSets, int numLines, long  int blockSize);
+char add_to_cache(struct Cache *cache, unsigned int tag, unsigned int index);
+void free_cache(struct Cache *cache);
 void printUsage();
-
 
 unsigned int hits = 0;
 unsigned int misses = 0;
@@ -105,21 +107,21 @@ unsigned int pw2(unsigned int p) {
 /** Returns the char of the result from the adding
  *
  */
-char add_to_cache(Cache *cache, unsigned int tag, unsigned int index) {
+char add_to_cache(struct Cache *cache, unsigned int tag, unsigned int index) {
 	// Use the index to get where ya gotta go, then use the tag to verify
-	CacheSet *set = cache->sets + index;
+	struct CacheSet *set = cache->sets + index;
 
 	unsigned firstEmptyIndex = -1;
 	for (int i = 0; i < set->numLines; i++) {
-		CacheLine *line = set->lines + i;
+		struct CacheLine *line = set->lines + i;
 		// Check each tag in the set
-		if (line->tag == tag && line->isValid == 1) {
+		if (line->tag == tag && line->is_valid == 1) {
 			// Then it's a hit
 			line->timeAdded = time++;
-			return "h";
+			return 'h';
 		}
 
-		if (firstEmptyIndex == -1 && line->isValid = 0) {
+		if (firstEmptyIndex == -1 && line->is_valid == 0) {
 			firstEmptyIndex = i;
 		}
 	}
@@ -127,11 +129,11 @@ char add_to_cache(Cache *cache, unsigned int tag, unsigned int index) {
 	// If it reaches here, then it's a miss
 	if (firstEmptyIndex != -1) {
 		// Then no eviction necessary, just a miss
-		CacheLine *emptyLine = set->lines + firstEmptyIndex;
+		struct CacheLine *emptyLine = set->lines + firstEmptyIndex;
 		emptyLine->tag = tag;
-		emptyLine->isValid = 1;
+		emptyLine->is_valid = 1;
 		emptyLine->timeAdded = time++;
-		return "m";
+		return 'm';
 	}
 
 	// Now it's an eviction, decide whom'st'd've to evict
@@ -139,11 +141,11 @@ char add_to_cache(Cache *cache, unsigned int tag, unsigned int index) {
 	// Then ya gotta deal with the gucci eviction stuff
 	// LRU (least recently used)
 	unsigned int lowestTime = INT_MAX;
-	CacheLine *lowestLine = NULL;
+	struct CacheLine *lowestLine = NULL;
 	for (int i = 0; i < cache->numSets; i++) {
-		CacheSet *set = cache->sets + i;
+		struct CacheSet *set = cache->sets + i;
 		for (int j = 0; j < set->numLines; j++) {
-			CacheLine *line = set->lines + j;
+			struct CacheLine *line = set->lines + j;
 			unsigned timeAdded = line->timeAdded;
 			if (timeAdded < lowestTime) {
 				// Then this is the new lowest time
@@ -156,19 +158,20 @@ char add_to_cache(Cache *cache, unsigned int tag, unsigned int index) {
 	// Then you evict the lowestLine
 	lowestLine->tag = tag;
 	lowestLine->timeAdded = time++;
-	return "e";
+	return 'e';
 }
 
-void clear_cache(Cache *cache, long int numSets, int numLines, long  int blockSize){
+void free_cache(struct Cache *cache){
 	int setIndex;
-	for (setIndex = 0; setIndex < numSets; setIndex ++){
-		cacheSet set = cache.sets[setIndex];
+	for (setIndex = 0; setIndex < cache->numSets; setIndex ++){
+		struct CacheSet set = cache->sets[setIndex];
 		if (set.lines != NULL){
 			free(set.lines);
 		}
 	}
-	if (Cache.sets != NULL) {
-		free(cache.sets);
+	// If you wanted to be safe in your freeing, you should do this check before
+	if (cache->sets != NULL) {
+		free(cache->sets);
 	}
 	free(cache);
 }
@@ -185,40 +188,95 @@ void printUsage() {
 	printf("  -t <file>  Trace file.\n\n");
 	printf("Examples:\n");
 	printf("  linux>  ./csim-ref -s 4 -E 1 -b 4 -t traces/yi.trace\n");
-	printf("  linux>  ./csim-ref -v -s 8 -E 2 -b 4 -t traces/yi.trace");
+	printf("  linux>  ./csim-ref -v -s 8 -E 2 -b 4 -t traces/yi.trace\n");
 }
 
 
 int main(int argc, char* argv[])
 {
 	// ./csim-ref [-hv] -s <num> -E <num> -b <num> -t <file>
-	if (argc != 10 || !strcmp(argv[1], "-h")) {
+	struct Cache *cache;
+	char *filename = NULL;
+	uint8_t vflag = 0;
+	unsigned int s = 0, b = 0, E = 0;
+
+	if (argc == 1) {
 		printUsage();
 		return EXIT_FAILURE;
 	}
 
-	int index_bits = atoi(argv[3]);
-	int lines_set = atoi(argv[5]);
-	int block_offset = atoi(argv[7]);
-	char *filename = argv[9];
+	char option;
+	while ((option = getopt(argc, argv, "hvs:E:b:t:")) != -1) {
+		// option is the char value, optarg is the char* value after
+		switch (option) {
+			case 'h':
+				// Actually wants the help message
+				printf("help\n");
+				printUsage();
+				return EXIT_FAILURE;
+			case 'v':
+				// verbose flag
+				vflag = 1;
+				break;
+			case 's':
+				// # of set index bits
+				s = atoi(optarg);
+				if (s <= 0) {
+					printf("%i not a good value for s\n", s);
+					return EXIT_FAILURE;
+				}
+				break;
+			case 'E':
+			// # of lines per set
+				E = atoi(optarg);
+				if (E <= 0) {
+					printf("%i not a good value for E\n", E);
+					return EXIT_FAILURE;
+				}
+				break;
+			case 'b':
+			// # of block bits
+				b = atoi(optarg);
+				if (b <= 0) {
+					printf("%i not a good value for b\n", b);
+					return EXIT_FAILURE;
+				}
+				break;
+			case 't':
+				// name of file
+				filename = optarg;
+				break;
+			default:
+				printf("unrecognized character %c\n", option);
+				printUsage();
+				return EXIT_FAILURE;
+		}
+	}
 
-	struct Cache *cache = initCache(lines_set, index_bits, block_offset);
+	// Check the arguments
+	if (E == 0 || b == 0 || s == 0 || filename == NULL) {
+		printf("not initialized variables\n");
+		printUsage();
+		return EXIT_FAILURE;
+	}
 
-	// TODO Some of this should change (for academic honesty reasons)
+	// Initialize the cache
+	cache = initCache(E, b, s);
+
 	// File reading variables
-	FILE *fp;
+	FILE *file;
 	char *line = NULL;
 	size_t len = 0;
 	size_t read;
 	//int size;
 
-	fp = fopen(filename, "r");
-	if (fp == NULL) {
+	file = fopen(filename, "r");
+	if (file == NULL) {
 		perror("Could not open file...");
 		return EXIT_FAILURE;
 	}
 
-	while ((read = getline(&line, &len, fp)) != -1) {
+	while ((read = getline(&line, &len, file)) != -1) {
 		// read is the length
 		// line is the string line
 		char operation;
@@ -240,7 +298,7 @@ int main(int argc, char* argv[])
 		for (; (c = line[i]) != ','; i++) {
 			hex[i - hexStartIndex] = c;
 		}
-		hex[9] = '\0';
+		hex[i] = '\0';
 
 		int hexNum = strtol(hex, NULL, 16);
 
@@ -249,31 +307,47 @@ int main(int argc, char* argv[])
 		unsigned index = (hexNum << (64 - (s + b))) >> (64 - s); // TODO check this :p
 
 		//from i+1 until the end, that string represents the size
-		//i++;
-		//int dataSize = atoi(&line[i]);
+		i++;
+		int dataSize = atoi(&line[i]);
 		// Ends at the endline anyways, so will be the string
 
 		// done reading from the line, now process it
 		// Process the hex
 		char result = add_to_cache(cache, tag, index);
+
+		if (vflag) {
+			if (operation != 'I') {
+				printf(" ");
+			}
+			printf("%c %x,%i ",operation, hexNum, dataSize);
+		}
+
 		switch (result) {
 			case 'h':
+				printf("hit");
 				hits++;
 				break;
 			case 'm':
+				printf("miss");
 				misses++;
 				break;
 			case 'e':
+				printf("miss eviction");
 				evictions++;
 				break;
 		}
+		if (operation == 'M') {
+			hits++;
+			printf(" hit");
+		}
+		printf("\n");
 	}
 
-	fclose(fp);
+	fclose(file);
 	if (line)
 		free(line);
-    printSummary(0, 0, 0);
-    //clear_cache();
+  printSummary(hits, misses, evictions);
+  free_cache(cache);
 
-    return EXIT_SUCCESS;
+  return EXIT_SUCCESS;
 }
