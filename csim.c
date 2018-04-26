@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <limits.h>
 
+#define uint8_t unsigned char
+
 //need to fix the order
 struct CacheLine;
 struct CacheSet;
@@ -19,8 +21,8 @@ struct Cache* initCache(unsigned int E, unsigned int b, unsigned int s);
 struct CacheSet initSet(unsigned int E);
 struct CacheLine initLine();
 unsigned int pw2(unsigned int p);
-char add_to_cache(Cache *cache, unsigned int tag, unsigned int index);
-void clear_cache(Cache *cache, long int numSets, int numLines, long  int blockSize);
+char add_to_cache(struct Cache *cache, unsigned int tag, unsigned int index);
+void clear_cache(struct Cache *cache, long int numSets, int numLines, long  int blockSize);
 void printUsage();
 
 
@@ -105,21 +107,21 @@ unsigned int pw2(unsigned int p) {
 /** Returns the char of the result from the adding
  *
  */
-char add_to_cache(Cache *cache, unsigned int tag, unsigned int index) {
+char add_to_cache(struct Cache *cache, unsigned int tag, unsigned int index) {
 	// Use the index to get where ya gotta go, then use the tag to verify
-	CacheSet *set = cache->sets + index;
+	struct CacheSet *set = cache->sets + index;
 
 	unsigned firstEmptyIndex = -1;
 	for (int i = 0; i < set->numLines; i++) {
-		CacheLine *line = set->lines + i;
+		struct CacheLine *line = set->lines + i;
 		// Check each tag in the set
-		if (line->tag == tag && line->isValid == 1) {
+		if (line->tag == tag && line->is_valid == 1) {
 			// Then it's a hit
 			line->timeAdded = time++;
-			return "h";
+			return 'h';
 		}
 
-		if (firstEmptyIndex == -1 && line->isValid = 0) {
+		if (firstEmptyIndex == -1 && line->is_valid == 0) {
 			firstEmptyIndex = i;
 		}
 	}
@@ -127,11 +129,11 @@ char add_to_cache(Cache *cache, unsigned int tag, unsigned int index) {
 	// If it reaches here, then it's a miss
 	if (firstEmptyIndex != -1) {
 		// Then no eviction necessary, just a miss
-		CacheLine *emptyLine = set->lines + firstEmptyIndex;
+		struct CacheLine *emptyLine = set->lines + firstEmptyIndex;
 		emptyLine->tag = tag;
-		emptyLine->isValid = 1;
+		emptyLine->is_valid = 1;
 		emptyLine->timeAdded = time++;
-		return "m";
+		return 'm';
 	}
 
 	// Now it's an eviction, decide whom'st'd've to evict
@@ -139,11 +141,11 @@ char add_to_cache(Cache *cache, unsigned int tag, unsigned int index) {
 	// Then ya gotta deal with the gucci eviction stuff
 	// LRU (least recently used)
 	unsigned int lowestTime = INT_MAX;
-	CacheLine *lowestLine = NULL;
+	struct CacheLine *lowestLine = NULL;
 	for (int i = 0; i < cache->numSets; i++) {
-		CacheSet *set = cache->sets + i;
+		struct CacheSet *set = cache->sets + i;
 		for (int j = 0; j < set->numLines; j++) {
-			CacheLine *line = set->lines + j;
+			struct CacheLine *line = set->lines + j;
 			unsigned timeAdded = line->timeAdded;
 			if (timeAdded < lowestTime) {
 				// Then this is the new lowest time
@@ -156,19 +158,19 @@ char add_to_cache(Cache *cache, unsigned int tag, unsigned int index) {
 	// Then you evict the lowestLine
 	lowestLine->tag = tag;
 	lowestLine->timeAdded = time++;
-	return "e";
+	return 'e';
 }
 
-void clear_cache(Cache *cache, long int numSets, int numLines, long  int blockSize){
+void clear_cache(struct Cache *cache, long int numSets, int numLines, long  int blockSize){
 	int setIndex;
 	for (setIndex = 0; setIndex < numSets; setIndex ++){
-		cacheSet set = cache.sets[setIndex];
+		struct CacheSet set = cache->sets[setIndex];
 		if (set.lines != NULL){
 			free(set.lines);
 		}
 	}
-	if (Cache.sets != NULL) {
-		free(cache.sets);
+	if (cache->sets != NULL) {
+		free(cache->sets);
 	}
 	free(cache);
 }
@@ -245,8 +247,12 @@ int main(int argc, char* argv[])
 		int hexNum = strtol(hex, NULL, 16);
 
 		// I don't even know if we're using s and b lmao
-		unsigned tag = hexNum >> (s + b); // TODO CHECK THIS
-		unsigned index = (hexNum << (64 - (s + b))) >> (64 - s); // TODO check this :p
+		unsigned tag = hexNum >> (index_bits + block_offset); // TODO CHECK THIS
+		unsigned index = (hexNum << (64 - (index_bits + block_offset))) >> (64 - index_bits); // TODO check this :p
+
+		if (operation == 'E') {
+			printf("aye\n");
+		}
 
 		//from i+1 until the end, that string represents the size
 		//i++;
