@@ -12,6 +12,7 @@
 #include <getopt.h>
 #include <limits.h>
 
+#define dbflag 0
 #define uint8_t unsigned char
 
 //need to fix the order
@@ -76,10 +77,9 @@ struct Cache* initCache(unsigned int E, unsigned int b, unsigned int s) {
  */
 struct CacheSet initSet(unsigned int E) {
 	struct CacheSet set;
-	unsigned int numLines = pw2(E);
-	set.lines = malloc(numLines * sizeof(struct CacheLine));
-	set.numLines = numLines;
-	for (int i = 0; i < numLines; i++) {
+	set.lines = malloc(E * sizeof(struct CacheLine));
+	set.numLines = E;
+	for (int i = 0; i < E; i++) {
 		set.lines[i] = initLine();
 	}
 	return set;
@@ -111,18 +111,22 @@ char add_to_cache(struct Cache *cache, unsigned int tag, unsigned int index) {
 	// Use the index to get where ya gotta go, then use the tag to verify
 	struct CacheSet *set = cache->sets + index;
 
-	unsigned firstEmptyIndex = -1;
 	for (int i = 0; i < set->numLines; i++) {
 		struct CacheLine *line = set->lines + i;
 		// Check each tag in the set
-		if (line->tag == tag && line->is_valid == 1) {
+		if (line->tag == tag && line->is_valid) {
 			// Then it's a hit
 			line->timeAdded = time++;
 			return 'h';
 		}
+	}
 
-		if (firstEmptyIndex == -1 && line->is_valid == 0) {
+	int firstEmptyIndex = -1;
+	for (int i = 0; i < set->numLines; i++) {
+		struct CacheLine *line = set->lines + i;
+		if (!line->is_valid) {
 			firstEmptyIndex = i;
+			break;
 		}
 	}
 
@@ -142,16 +146,12 @@ char add_to_cache(struct Cache *cache, unsigned int tag, unsigned int index) {
 	// LRU (least recently used)
 	unsigned int lowestTime = INT_MAX;
 	struct CacheLine *lowestLine = NULL;
-	for (int i = 0; i < cache->numSets; i++) {
-		struct CacheSet *set = cache->sets + i;
-		for (int j = 0; j < set->numLines; j++) {
-			struct CacheLine *line = set->lines + j;
-			unsigned timeAdded = line->timeAdded;
-			if (timeAdded < lowestTime) {
-				// Then this is the new lowest time
-				lowestTime = timeAdded;
-				lowestLine = line;
-			}
+	for (int i = 0; i < set->numLines; i++) {
+		struct CacheLine *line = set->lines + i;
+		unsigned timeAdded = line->timeAdded;
+		if (timeAdded < lowestTime) {
+			lowestTime = timeAdded;
+			lowestLine = line;
 		}
 	}
 
@@ -292,7 +292,7 @@ int main(int argc, char* argv[])
 		}
 
 		int i = hexStartIndex;
-		char hex[10];
+		char *hex = calloc(sizeof(char), 10);
 		char c;
 		//strtok(line, " ,");
 		for (; (c = line[i]) != ','; i++) {
@@ -300,11 +300,15 @@ int main(int argc, char* argv[])
 		}
 		hex[i] = '\0';
 
-		int hexNum = strtol(hex, NULL, 16);
+		unsigned long hexNum = strtol(hex, NULL, 16);
 
-		// I don't even know if we're using s and b lmao
-		unsigned tag = hexNum >> (s + b); // TODO CHECK THIS
-		unsigned index = (hexNum << (64 - (s + b))) >> (64 - s); // TODO check this :p
+		free(hex);
+
+		unsigned tag = hexNum >> (s + b);
+		unsigned index = ((hexNum << (64 - (s + b))) >> (64 - s)); // TODO check this :p
+
+		//unsigned JTAG = hexNum >> (s + b); //get the tag portion of the address
+    //unsigned JINDEX = (hexNum^(JTAG<<(b+s)))>>b; //get the set index of the address
 
 		//from i+1 until the end, that string represents the size
 		i++;
@@ -313,40 +317,47 @@ int main(int argc, char* argv[])
 
 		// done reading from the line, now process it
 		// Process the hex
-		char result = add_to_cache(cache, tag, index);
 
-		if (vflag) {
-			if (operation != 'I') {
-				printf(" ");
+		if (operation != 'I') {
+			char result = add_to_cache(cache, tag, index);
+
+			if (dbflag) {
+				printf("(index: %i, tag: %i) ", index, tag);
 			}
-			printf("%c %x,%i ",operation, hexNum, dataSize);
-		}
+			if (vflag) {
+				printf("%c %lx,%i ",operation, hexNum, dataSize);
+			}
 
-		switch (result) {
-			case 'h':
-				printf("hit");
+			switch (result) {
+				case 'h':
+					printf("hit");
+					hits++;
+					break;
+				case 'm':
+					printf("miss");
+					misses++;
+					break;
+				case 'e':
+					printf("miss eviction");
+					misses++;
+					evictions++;
+					break;
+			}
+			if (operation == 'M') {
 				hits++;
-				break;
-			case 'm':
-				printf("miss");
-				misses++;
-				break;
-			case 'e':
-				printf("miss eviction");
-				evictions++;
-				break;
+				printf(" hit");
+			}
+			printf("\n");
 		}
-		if (operation == 'M') {
-			hits++;
-			printf(" hit");
-		}
-		printf("\n");
 	}
 
 	fclose(file);
 	if (line)
 		free(line);
   printSummary(hits, misses, evictions);
+  hits = 0;
+  misses = 0;
+  evictions = 0;
   free_cache(cache);
 
   return EXIT_SUCCESS;
