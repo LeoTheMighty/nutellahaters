@@ -14,7 +14,6 @@
 #include "cachelab.h"
 
 int is_transpose(int M, int N, int A[N][M], int B[M][N]);
-void transpose_64_64(int M, int N, int A[N][M], int B[M][N]);
 
 /*
  * transpose_submit - This is the solution transpose function that you
@@ -26,105 +25,51 @@ void transpose_64_64(int M, int N, int A[N][M], int B[M][N]);
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
-  int Bsize; //Size of block
-  int rowBlock, colBlock; //used to iterate over columns and rows of block
-  int r, c; // used to iterate through each block in inner loops
-  int temp = 0, d = 0; //d stands for diagonal, temp is for temporary variable
-  // int v0,v1,v2,v3,v4; //Variables to be used in the N==64 case for various assignments within it
-  
-  // important info :  s=5, E=1, b=5 (32 sets, direct-mapped, 32 bytes per block)
-  if (N == 32)
-  {
-    Bsize = 8; // choose B = 8 for optimization result
-    //why choose 8*8 ? the cache can hold a entirely 8x8 block of data in this case. In another word, accessing the data within a 8x8 block will only cause cold misses. Therefore, we can divide the 32x32 matrix into 16 blocks with the size of 32x32, and transpose block by block
-    /*
-      2 outer loops iterates accross blocks / 2 inner loops iterate through each block. 
-      */
-    for(colBlock = 0; colBlock < N; colBlock += 8)
-    {
-      for(rowBlock = 0; rowBlock < N; rowBlock += 8)
-      {
-        for(r = rowBlock; r < rowBlock + 8; r++)
-        {
-          for(c = colBlock; c < colBlock + 8; c++)
-          {
-            //When row and collumn is not equal then we can change the value in B to the desired value in A
-            if(r != c)
-            {
-              B[c][r] = A[r][c];
-            }
-            
-            else 
-            {
-            //However, when row == column, it means we touched the diagonal of the square. Now, we are accessing A and B in the same innerloop, and A, B have differnt tags. For the diagonal blocks, there are conflicts when accessing the same row of A and B. This part should not be moved or reassigned to avoid misses. Instead, we used 2 temporary variable, 1 to store the position, 1 to store the value for later assign.  use temporary local variables to avoid having to re-access those elements
-            temp = A[r][c];
-            d = r;
+  // 12 local variables at most
+  // no arrays or calloc'string
+  // A is not mutable but B is
+  // no recursion
+  // helper functions must abide by the 12 variable rule
+  // cache is a (5, 1, 5) for (s, E, b)
+  int i, j, i_block, j_block; //for iteration i=collums j=rows and then through collum and row blocks
+  int b_s; //block size
+  int temp; //temparay variable
+  int d; //diagonal 
+
+  if (N == 32 && M == 32) {
+    b_s = 8;
+
+////2 outer loops iterates accross blocks / 2 inner loops iterate through each block. 
+    for (j_block = 0; j_block < (N / b_s); j_block++) {
+      for (i_block = 0; i_block < (M / b_s); i_block++) {
+        for (i = (i_block * b_s); i < ((i_block + 1) * b_s); i++) {
+          for(j = (j_block * b_s); j < ((j_block + 1) * b_s); j++) {
+            if(i != j){  //When row and collumn is not equal then we can change the value in B to the desired value in A
+              B[j][i] = A[i][j];
+            } else {
+              //However, when row == column, it means we touched the diagonal 
+              //of the square. Now, we are accessing A and B in the same innerloop,
+              // and A, B have differnt tags. For the diagonal blocks, there are 
+              //conflicts when accessing the same row of A and B. This part should 
+              //not be moved or reassigned to avoid misses. Instead, we used 2 temporary 
+              //variable, 1 to store the position, 1 to store the value for later assign. 
+              // use temporary local variables to avoid having to re-access those elements
+              temp = A[i][j];
+              d = i;
             }
           }
-          // Each traverse only has 1 element in the diagonal line. So we will assign it here, outside of the loop.
-          if (rowBlock == colBlock) 
-          {
+
+           // Each traverse only has 1 element in the diagonal line. So we will assign it here, outside of the loop.
+          if (i_block == j_block) {
             B[d][d] = temp;
           }
         }
       }
     }
+
   }
-
-  /* Using Bsize = 4 here. 
-  2 levels of loops are used 
-  We assign elements in each row individually. Causes reduced missess. */
-  else if (N == 64)
-  { 
-    transpose_64_64(M,N,A,B);
-  }
-
-  /* Random size. We use Bsize = 16 
-  2 levels of loops are used to iterate over blocks in column major iteration and 2 levels are used to go through the blocks
-  */
-  else 
-  {
-    Bsize = 16;
-    
-    for (colBlock = 0; colBlock < M; colBlock += Bsize)
-    {
-      for (rowBlock = 0; rowBlock < N; rowBlock += Bsize)
-      { 
-        /*not all blocks will be square, so (rowBlock + 16 > N) may get an invalid access. Therefore we need to regularly check for r<N and c<M */
-        for(r = rowBlock; (r < N) && (r < rowBlock + Bsize); r++)
-        {
-          for(c = colBlock; (c < M) && (c < colBlock + Bsize); c++)
-          {
-            //row and column are not same
-            if (r != c)
-            {
-              B[c][r] = A[r][c];
-            }
-            
-            //row and column same. process like 32 x 32 
-            else
-            {
-              temp = A[r][c];
-              d = r;
-            }
-          }
-          
-          //Diagonal
-          if(rowBlock == colBlock) 
-          {
-            B[d][d] = temp;
-          }
-        }
-      }
-    }
-  }
-
-}
-
-// custom function solve 64x64 case
-char transpose_64_64_desc[] = "Transpose the 64 x 64 matrix";
-void transpose_64_64(int M, int N, int A[N][M], int B[M][N]) {
-  int colRun, rowRun, k, a0, a1, a2, a3, a4, a5, a6, a7; // supporting variables
+  else if (N == 64) { 
+     int colRun, rowRun, k, a0, a1, a2, a3, a4, a5, a6, a7; // supporting variables
 
     // two loops to go through each row and column block 
     for(colRun=0; colRun<64; colRun+=8 ){
@@ -143,17 +88,15 @@ void transpose_64_64(int M, int N, int A[N][M], int B[M][N]) {
             a6 = A[colRun+k][rowRun+6];
             a7 = A[colRun+k][rowRun+7];
 
-            // In the code, I comment "Good job" for the elements that are transposed correctly. "Later use" for later assignment
-            B[rowRun+0][colRun+k+0] = a0;   // good job
-            B[rowRun+0][colRun+k+4] = a5; // later use
-            B[rowRun+1][colRun+k+0] = a1; // good job
-            B[rowRun+1][colRun+k+4] = a6; //later use
-            B[rowRun+2][colRun+k+0] = a2; // good job
-            B[rowRun+2][colRun+k+4] = a7; //later use
-            B[rowRun+3][colRun+k+0] = a3; // good job
-            B[rowRun+3][colRun+k+4] = a4; // later use
+            B[rowRun+0][colRun+k+0] = a0; 
+            B[rowRun+0][colRun+k+4] = a5; 
+            B[rowRun+1][colRun+k+0] = a1; 
+            B[rowRun+1][colRun+k+4] = a6; 
+            B[rowRun+2][colRun+k+0] = a2; 
+            B[rowRun+2][colRun+k+4] = a7; 
+            B[rowRun+3][colRun+k+0] = a3; 
+            B[rowRun+3][colRun+k+4] = a4; 
           }
-
 
             /* Part B, moving sub-matrix b to sub-matrix c
              * and moving A->B for sub-matrix b and move matrix d
@@ -169,7 +112,6 @@ void transpose_64_64(int M, int N, int A[N][M], int B[M][N]) {
           a5 = A[colRun+5][rowRun+3];
           a6 = A[colRun+6][rowRun+3];
           a7 = A[colRun+7][rowRun+3];
-
 
           B[rowRun+4][colRun+0] = B[rowRun+3][colRun+4];  // B[4][0] = a4 = A[0][4] For example
           B[rowRun+4][colRun+4] = a0;  // B[4][4] = A[4][4] For example
@@ -187,7 +129,6 @@ void transpose_64_64(int M, int N, int A[N][M], int B[M][N]) {
           // this loops deal with the the remaning elements .
           for(k=0;k<3;k++){
 
-
             a0 = A[colRun+4][rowRun+5+k];
             a1 = A[colRun+5][rowRun+5+k];
             a2 = A[colRun+6][rowRun+5+k];
@@ -196,7 +137,6 @@ void transpose_64_64(int M, int N, int A[N][M], int B[M][N]) {
             a5 = A[colRun+5][rowRun+k];
             a6 = A[colRun+6][rowRun+k];
             a7 = A[colRun+7][rowRun+k];
-
 
             B[rowRun+5+k][colRun+0] = B[rowRun+k][colRun+4];
             B[rowRun+5+k][colRun+4] = a0;
@@ -210,89 +150,41 @@ void transpose_64_64(int M, int N, int A[N][M], int B[M][N]) {
             B[rowRun+5+k][colRun+3] = B[rowRun+k][colRun+7];
             B[rowRun+5+k][colRun+7] = a3;
             B[rowRun+k][colRun+7] = a7;
-
-
-          }
-
-
-        }
-  } 
-}
-/*{
-  // 12 local variables at most
-  // no arrays or calloc'string
-  // A is not mutable but B is
-  // no recursion
-  // helper functions must abide by the 12 variable rule
-  // cache is a (5, 1, 5) for (s, E, b)
-  int i, j;
-  int i_block, j_block;
-  int b_s;
-  int temp;
-  int d;
-
-  if (N == 32 && M == 32) {
-    b_s = 8;
-
-    for (j_block = 0; j_block < (N / b_s); j_block++) {
-      for (i_block = 0; i_block < (M / b_s); i_block++) {
-        for (i = (i_block * b_s); i < ((i_block + 1) * b_s); i++) {
-          for(j = (j_block * b_s); j < ((j_block + 1) * b_s); j++) {
-            if(i != j){
-              B[j][i] = A[i][j];
-            } else {
-              temp = A[i][j];
-              d = i;
-            }
-          }
-
-          if (i_block == j_block) {
-            B[d][d] = temp;
           }
         }
       }
     }
 
-  }
-  else if (N == 64 && M == 64) {
-     b_s = 4;
-
-    for (j_block = 0; j_block < (N / b_s); j_block++) {
-      for (i_block = 0; i_block < (M / b_s); i_block++) {
-        for (i = (i_block * b_s); i < ((i_block + 1) * b_s); i++) {
-          for(j = (j_block * b_s); j < ((j_block + 1) * b_s); j++) {
-            if(i != j){
-              B[j][i] = A[i][j];
-            } else {
-              temp = A[i][j];
-              d = i;
-            }
-          }
-
-          if (i_block == j_block) {
-            B[d][d] = temp;
-          }
-        }
-      }
-    }
-  } 
   else {
     b_s = 16;
-
-    for (j_block = 0; j_block < (N / b_s); j_block++) {
-      for (i_block = 0; i_block < (M / b_s); i_block++) {
-        for (i = (j_block * b_s); i < ((j_block + 1) * b_s); i++) {
-          for(j = (i_block * b_s); j < ((i_block + 1) * b_s); j++) {
-            if (i_block - j_block >= 0) {
+    
+    for (j_block = 0; j_block < M; j_block += b_s){
+      for (i_block = 0; i_block < N; i_block += b_s){ 
+        /*not all blocks will be square, so (rowBlock + 16 > N) may get an invalid access. Therefore we need to regularly check for r<N and c<M */
+        for(i = i_block; (i < N) && (i < i_block + b_s); i++){
+          for(j = j_block; (j < M) && (j < j_block + b_s); j++){
+            //row and column are not same
+            if (i != j){
               B[j][i] = A[i][j];
             }
+            
+            //row and column same. process like 32 x 32 
+            else{
+              temp = A[i][j];
+              d = i;
+            }
+          }
+          
+          //Diagonal
+          if(i_block == j_block){
+            B[d][d] = temp;
           }
         }
       }
     }
   }
-}*/
 
+}
 
 /*
  * You can define additional transpose functions below. We've defined
