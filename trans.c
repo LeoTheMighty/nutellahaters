@@ -31,27 +31,29 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N])
   // no recursion
   // helper functions must abide by the 12 variable rule
   // cache is a (5, 1, 5) for (s, E, b)
-  int i, j;
-  int i_block, j_block;
-  int b_s;
-  int temp;
-  int d;
+  int i, j, i_block, j_block; //for iteration i=collums j=rows and then through collum and row blocks
+  int b_s; //block size
+  int temp; //temparay variable
+  int d; //diagonal 
 
   if (N == 32 && M == 32) {
     b_s = 8;
 
+    //2 loops iterates through blocks and 2 loops iterate across each block. 
     for (j_block = 0; j_block < (N / b_s); j_block++) {
       for (i_block = 0; i_block < (M / b_s); i_block++) {
         for (i = (i_block * b_s); i < ((i_block + 1) * b_s); i++) {
           for(j = (j_block * b_s); j < ((j_block + 1) * b_s); j++) {
-            if(i != j){
+            if(i != j){  //When row and collumn is not equal then we can change the value in B array to the value in A
               B[j][i] = A[i][j];
             } else {
+              //When a row == column it touched the diagonal of the matrix so use 2 temporary vars to stop and store the position
               temp = A[i][j];
               d = i;
             }
           }
 
+           // Each traverse only has 1 element in the diagonal line that is assigned outside of the loop.
           if (i_block == j_block) {
             B[d][d] = temp;
           }
@@ -60,49 +62,107 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N])
     }
 
   }
-  else if (N == 64 && M == 64) {
-    b_s = 4;
+  else if (N == 64) { 
+     int colRun, rowRun, k, a0, a1, a2, a3, a4, a5, a6, a7; // supporting variables
 
-    for (j_block = 0; j_block < (N / b_s); j_block++) {
-      for (i_block = 0; i_block < (M / b_s); i_block++) {
-        for (i = (i_block * b_s); i < ((i_block + 1) * b_s); i++) {
-          for(j = (j_block * b_s); j < ((j_block + 1) * b_s); j++) {
-            if(i != j){
-              B[j][i] = A[i][j];
-            } else {
-              temp = A[i][j];
-              d = i;
-            }
+    // two loops to go through each row and column block 
+    for(colRun=0; colRun<64; colRun+=8 ){
+        for(rowRun=0; rowRun<64; rowRun+=8 ){
+        //The first loop is for a 4 collumn 8 row of A. use loop to store variables. the nchange to the poistion of B. Not everything will be transposed correct, there will be some misses.
+          for(k=0; k<4; k++){ 
+            a0 = A[colRun+k][rowRun+0];
+            a1 = A[colRun+k][rowRun+1];
+            a2 = A[colRun+k][rowRun+2];
+            a3 = A[colRun+k][rowRun+3];
+            a4 = A[colRun+k][rowRun+4];
+            a5 = A[colRun+k][rowRun+5];
+            a6 = A[colRun+k][rowRun+6];
+            a7 = A[colRun+k][rowRun+7];
+
+            B[rowRun+0][colRun+k+0] = a0; 
+            B[rowRun+0][colRun+k+4] = a5; 
+            B[rowRun+1][colRun+k+0] = a1; 
+            B[rowRun+1][colRun+k+4] = a6; 
+            B[rowRun+2][colRun+k+0] = a2; 
+            B[rowRun+2][colRun+k+4] = a7; 
+            B[rowRun+3][colRun+k+0] = a3; 
+            B[rowRun+3][colRun+k+4] = a4; 
           }
+          //This is for the stored variables from the loop above that are correct and puts them in the right position. moves one matrix to another matrix b.
+          a0 = A[colRun+4][rowRun+4];
+          a1 = A[colRun+5][rowRun+4];
+          a2 = A[colRun+6][rowRun+4];
+          a3 = A[colRun+7][rowRun+4];
+          a4 = A[colRun+4][rowRun+3];
+          a5 = A[colRun+5][rowRun+3];
+          a6 = A[colRun+6][rowRun+3];
+          a7 = A[colRun+7][rowRun+3];
 
-          if (i_block == j_block) {
-            B[d][d] = temp;
+          B[rowRun+4][colRun+0] = B[rowRun+3][colRun+4];
+          B[rowRun+4][colRun+4] = a0; 
+          B[rowRun+3][colRun+4] = a4;
+          B[rowRun+4][colRun+1] = B[rowRun+3][colRun+5];
+          B[rowRun+4][colRun+5] = a1;
+          B[rowRun+3][colRun+5] = a5;
+          B[rowRun+4][colRun+2] = B[rowRun+3][colRun+6];
+          B[rowRun+4][colRun+6] = a2;
+          B[rowRun+3][colRun+6] = a6;
+          B[rowRun+4][colRun+3] = B[rowRun+3][colRun+7];
+          B[rowRun+4][colRun+7] = a3;
+          B[rowRun+3][colRun+7] = a7;
+
+          // This loops deal with the other elements that remain.
+          for(k=0;k<3;k++){
+            a0 = A[colRun+4][rowRun+5+k];
+            a1 = A[colRun+5][rowRun+5+k];
+            a2 = A[colRun+6][rowRun+5+k];
+            a3 = A[colRun+7][rowRun+5+k];
+            a4 = A[colRun+4][rowRun+k];
+            a5 = A[colRun+5][rowRun+k];
+            a6 = A[colRun+6][rowRun+k];
+            a7 = A[colRun+7][rowRun+k];
+
+            B[rowRun+5+k][colRun+0] = B[rowRun+k][colRun+4];
+            B[rowRun+5+k][colRun+4] = a0;
+            B[rowRun+k][colRun+4] = a4;
+            B[rowRun+5+k][colRun+1] = B[rowRun+k][colRun+5];
+            B[rowRun+5+k][colRun+5] = a1;
+            B[rowRun+k][colRun+5] = a5;
+            B[rowRun+5+k][colRun+2] = B[rowRun+k][colRun+6];
+            B[rowRun+5+k][colRun+6] = a2;
+            B[rowRun+k][colRun+6] = a6;
+            B[rowRun+5+k][colRun+3] = B[rowRun+k][colRun+7];
+            B[rowRun+5+k][colRun+7] = a3;
+            B[rowRun+k][colRun+7] = a7;
           }
         }
       }
     }
-  }
+
   else {
-    b_s = 8;
-
-    for (j_block = 0; j_block < (N / b_s); j_block++) {
-      for (i_block = 0; i_block < (M / b_s); i_block++) {
-        for (i = (j_block * b_s); i < ((j_block + 1) * b_s); i++) {
-          for(j = (i_block * b_s); j < ((i_block + 1) * b_s); j++) {
-            if (i_block - j_block >= 0) {
+    b_s = 16;
+    
+    for (j_block = 0; j_block < M; j_block += b_s){
+      for (i_block = 0; i_block < N; i_block += b_s){
+        for(i = i_block; (i < N) && (i < i_block + b_s); i++){
+          for(j = j_block; (j < M) && (j < j_block + b_s); j++){
+            if (i != j){ //if i and j not same (rows and collums)
               B[j][i] = A[i][j];
+            else{ //if i and j the same (rows and collums)
+              temp = A[i][j];
+              d = i;
             }
-          /*
-          if(i != j){
-            B[M][N] = A[M][N];
-          }else{
-            temp = A[M][N];
-          }*/
+          }
+          
+          //Diagonal
+          if(i_block == j_block){
+            B[d][d] = temp;
           }
         }
       }
     }
   }
+
 }
 
 /*
